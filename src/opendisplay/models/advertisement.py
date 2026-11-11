@@ -456,6 +456,18 @@ class WakeTracker:
         else:
             self._last.pop(address, None)
 
+    def touch(self, address: str, timestamp: float | None = None) -> None:
+        """Mark the device as known-awake without an advertisement.
+
+        A connected device stops advertising; call this while the host holds a
+        connection so the silence is not taken for a sleep and the next
+        advertisement for a new wake.
+        """
+        last = self._last.get(address)
+        if last is not None:
+            now = timestamp if timestamp is not None else time.time()
+            self._last[address] = (last[0], last[1], now)
+
     def update(
         self,
         address: str,

@@ -149,6 +149,14 @@ class TestWakeTrackerLevel2:
         assert event.reason == "rebooted"
         assert tracker.update("AA", _adv(1, reboot_flag=True), timestamp=6.0) is None
 
+    def test_touch_bridges_a_connection(self):
+        """Silence while the host is connected is not a sleep."""
+        tracker = WakeTracker(INDEX, gap_seconds=60)
+        tracker.update("AA", _adv(3), timestamp=0.0)
+        tracker.touch("AA", timestamp=50.0)
+        tracker.touch("AA", timestamp=100.0)
+        assert tracker.update("AA", _adv(3), timestamp=130.0) is None
+
     def test_per_address_and_reset(self):
         tracker = WakeTracker(INDEX)
         tracker.update("AA", _adv(3), timestamp=0.0)
