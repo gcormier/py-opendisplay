@@ -213,7 +213,29 @@ class PowerOption:
     charger_flags: int  # uint8 bitfield (bit0/bit1 active-low)
     min_wake_time_seconds: int  # uint16 (0 -> firmware default 120 s)
     screen_timeout_seconds: int  # uint8 EPD keep-alive; fw clamps to 30, forced 0 on AXP2101
+    # reserved[0] (offset 26) is wake_info_msd_slot on firmware that supports it:
+    # see published_wake_info_byte_index. Kept in the raw blob so round-trips
+    # are byte-exact with older firmware.
     reserved: bytes  # 4 bytes (offsets 26-29)
+
+    MAX_WAKE_INFO_MSD_SLOT: ClassVar[int] = 11
+
+    @property
+    def wake_info_msd_slot(self) -> int:
+        """Raw PowerOption.wake_info_msd_slot (offset 26): 1-based, 0 = off."""
+        return self.reserved[0] if self.reserved else 0
+
+    @property
+    def published_wake_info_byte_index(self) -> int | None:
+        """Dynamic block byte carrying the wake-cause byte, or None if not published.
+
+        The config field is one-based (0 = off) so that configs written before
+        the field existed -- where the byte was reserved/zero -- publish nothing.
+        """
+        slot = self.wake_info_msd_slot
+        if not 1 <= slot <= self.MAX_WAKE_INFO_MSD_SLOT:
+            return None
+        return slot - 1
 
     @property
     def battery_mah(self) -> int:

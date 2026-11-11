@@ -6,6 +6,29 @@ from enum import IntEnum
 from typing import Final
 
 
+class WakeCause(IntEnum):
+    """Why the device last booted/woke (MsdWakeInfo byte, bits 0-3).
+
+    Published in the advertisement dynamic block at
+    ``PowerOption.published_wake_info_byte_index``. Mirrors ``enum WakeCause``
+    in the firmware's opendisplay_structs.h. Values 11-14 are reserved; decode
+    unknown values as OTHER.
+    """
+
+    UNKNOWN = 0
+    POWER_ON = 1
+    RESET = 2
+    RTC = 3
+    TIMER = 4
+    BUTTON = 5
+    SOFTWARE = 6
+    PANIC = 7
+    WATCHDOG = 8
+    BROWNOUT = 9
+    USB = 10
+    OTHER = 15
+
+
 class RefreshMode(IntEnum):
     """Display refresh modes.
 

@@ -7,6 +7,8 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from .enums import WakeCause
+
 # SHT40 temperature/humidity readings, bit-packed into 3 bytes of the v1 dynamic
 # block. Firmware writes them as a 24-bit little-endian word (21 bits used):
 #   v = (rh_deci & 0x3FF) | ((t_deci + 400) << 10)
@@ -22,6 +24,13 @@ _SHT40_MAX_RH_DECI = 1000  # 100.0 %RH
 _SHT40_MAX_TEMP_UNITS = 1650  # (125.0 C * 10) + bias, the SHT40's upper limit
 _SHT40_UNWRITTEN = 0x000000  # slot the firmware has never written
 _SHT40_INVALID = 0xFFFFFF  # firmware's explicit read-failure sentinel
+
+# MsdWakeInfo byte: bits 0-3 WakeCause, bits 4-7 reserved (future wake-window flags).
+WAKE_INFO_CAUSE_MASK = 0x0F
+# A device unseen for longer than this and then advertising again has slept and
+# woken. Battery tags sleep for minutes; continuously advertising devices
+# never go this quiet unless they rebooted or dropped off the air.
+WAKE_GAP_SECONDS = 60.0
 
 
 @dataclass
@@ -135,6 +144,18 @@ class AdvertisementData:
             x=x,
             y=y,
         )
+
+    def wake_cause(self, byte_index: int) -> WakeCause | None:
+        """Decode the wake-cause byte at ``byte_index`` of dynamic_data (v1 only).
+
+        Pass ``PowerOption.published_wake_info_byte_index`` from the device
+        config. Returns None for legacy advertisements or an out-of-range index.
+        """
+        if self.format_version != "v1":
+            return None
+        if not 0 <= byte_index < len(self.dynamic_data):
+            return None
+        return decode_wake_cause(self.dynamic_data[byte_index])
 
     def sht40_reading(self, start_byte: int = SHT40_DEFAULT_MSD_START) -> Sht40Reading | None:
         """Decode a 3-byte SHT40 block from dynamic_data at the given offset (v1 only).
@@ -287,6 +308,88 @@ def decode_sht40(raw: bytes, start_byte: int = SHT40_DEFAULT_MSD_START) -> Sht40
         humidity_percent=rh_deci / 10.0,
         raw=bytes(raw),
     )
+
+
+def decode_wake_cause(raw: int) -> WakeCause:
+    """Decode an MsdWakeInfo byte to its WakeCause (reserved values -> OTHER)."""
+    try:
+        return WakeCause(raw & WAKE_INFO_CAUSE_MASK)
+    except ValueError:
+        return WakeCause.OTHER
+
+
+@dataclass
+class WakeChangeEvent:
+    """A newly observed device wake (see :class:`WakeTracker`)."""
+
+    address: str
+    cause: WakeCause
+    previous_cause: WakeCause | None
+    reason: str  # "gap" | "cause_changed" | "rebooted"
+    timestamp: float
+
+
+class WakeTracker:
+    """Detect new wakes from the advertised wake-cause byte.
+
+    The cause is constant for a whole wake window and often repeats from one
+    wake to the next (rtc, rtc, ...), so a value change alone misses most
+    wakes. A new wake is reported when any of these hold:
+
+    - the device is seen again after ``gap_seconds`` without advertisements;
+    - the cause differs from the previous advertisement's;
+    - the reboot flag rose False -> True (a reset of an always-on device that
+      came back within the gap).
+
+    The first advertisement for an address only primes the tracker (it is the
+    state at integration start, not a wake we witnessed). Best effort: a wake
+    whose whole window the scanner missed is not reported.
+    """
+
+    def __init__(self, byte_index: int, gap_seconds: float = WAKE_GAP_SECONDS) -> None:
+        """Track the wake byte at ``byte_index`` of the dynamic block."""
+        self._byte_index = byte_index
+        self._gap_seconds = gap_seconds
+        self._last: dict[str, tuple[WakeCause, bool | None, float]] = {}
+
+    def reset(self, address: str | None = None) -> None:
+        """Forget state for one device or all devices."""
+        if address is None:
+            self._last.clear()
+        else:
+            self._last.pop(address, None)
+
+    def update(
+        self,
+        address: str,
+        advertisement: AdvertisementData,
+        timestamp: float | None = None,
+    ) -> WakeChangeEvent | None:
+        """Process one advertisement; return the wake it reveals, if any."""
+        cause = advertisement.wake_cause(self._byte_index)
+        if cause is None:
+            return None
+        now = timestamp if timestamp is not None else time.time()
+        previous = self._last.get(address)
+        self._last[address] = (cause, advertisement.reboot_flag, now)
+        if previous is None:
+            return None
+        prev_cause, prev_reboot, prev_seen = previous
+        if now - prev_seen > self._gap_seconds:
+            reason = "gap"
+        elif cause != prev_cause:
+            reason = "cause_changed"
+        elif advertisement.reboot_flag and prev_reboot is False:
+            reason = "rebooted"
+        else:
+            return None
+        return WakeChangeEvent(
+            address=address,
+            cause=cause,
+            previous_cause=prev_cause,
+            reason=reason,
+            timestamp=now,
+        )
 
 
 class AdvertisementTracker:

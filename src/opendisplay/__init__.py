@@ -47,8 +47,11 @@ from .models.advertisement import (
     TouchChangeEvent,
     TouchEventData,
     TouchTracker,
+    WakeChangeEvent,
+    WakeTracker,
     decode_button_event,
     decode_sht40,
+    decode_wake_cause,
     parse_advertisement,
 )
 from .models.buzzer_activate import BuzzerActivateConfig, BuzzerPattern, BuzzerStep, note_to_index
@@ -91,6 +94,7 @@ from .models.enums import (
     SensorType,
     SolumBoardType,
     TouchIcType,
+    WakeCause,
     WaveshareBoardType,
     get_board_type_name,
     get_manufacturer_name,
@@ -187,6 +191,7 @@ __all__ = [
     "OpenDisplayBoardType",
     "PartialUpdateSupport",
     "RefreshMode",
+    "WakeCause",
     "ICType",
     "PowerMode",
     "BusType",
@@ -204,6 +209,9 @@ __all__ = [
     "get_manufacturer_name",
     # Utilities
     "decode_sht40",
+    "decode_wake_cause",
+    "WakeChangeEvent",
+    "WakeTracker",
     "parse_advertisement",
     "read_sensor_values",
     "decode_button_event",
