@@ -48,10 +48,14 @@ from .models.advertisement import (
     TouchEventData,
     TouchTracker,
     WakeChangeEvent,
+    WakeInfo,
     WakeTracker,
     decode_button_event,
     decode_sht40,
+    decode_sleep_duration,
     decode_wake_cause,
+    decode_wake_info,
+    encode_sleep_duration,
     parse_advertisement,
 )
 from .models.buzzer_activate import BuzzerActivateConfig, BuzzerPattern, BuzzerStep, note_to_index
@@ -210,6 +214,10 @@ __all__ = [
     # Utilities
     "decode_sht40",
     "decode_wake_cause",
+    "decode_wake_info",
+    "decode_sleep_duration",
+    "encode_sleep_duration",
+    "WakeInfo",
     "WakeChangeEvent",
     "WakeTracker",
     "parse_advertisement",

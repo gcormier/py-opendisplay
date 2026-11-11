@@ -218,7 +218,8 @@ class PowerOption:
     # are byte-exact with older firmware.
     reserved: bytes  # 4 bytes (offsets 26-29)
 
-    MAX_WAKE_INFO_MSD_SLOT: ClassVar[int] = 11
+    # One-based start of the 3-byte wake-info block; it must fit the 11-byte area.
+    MAX_WAKE_INFO_MSD_SLOT: ClassVar[int] = 9
 
     @property
     def wake_info_msd_slot(self) -> int:
@@ -227,7 +228,7 @@ class PowerOption:
 
     @property
     def published_wake_info_byte_index(self) -> int | None:
-        """Dynamic block byte carrying the wake-cause byte, or None if not published.
+        """Start of the 3-byte wake-info block in the dynamic data, or None if not published.
 
         The config field is one-based (0 = off) so that configs written before
         the field existed -- where the byte was reserved/zero -- publish nothing.
